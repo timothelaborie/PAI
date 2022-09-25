@@ -40,11 +40,35 @@ def log_posterior_probs(x):
         log_posterior_probs (np.ndarray): a numpy array of size 3, containing the Bayesian log-posterior probabilities
                                           corresponding to the three hypotheses
     """
-    assert x.ndim == 1
 
-    # TODO: enter your code here
+    list1 = []
+    list2 = []
+    
+    for (dist,prior) in zip(HYPOTHESIS_SPACE,PRIOR_PROBS):
+        temp = dist.pdf(x)
+        # print(temp)
+        combined = np.sum(np.log(temp))
+        # print(combined)
+        withprior = combined + np.log(prior)
+        # print("withprior: ", withprior)
+        list1.append(withprior)
 
-    assert log_p.shape == (3,)
+
+    m = np.max(list1)
+    for logprob in list1:
+        # print("m: ", m)
+        # print("logprob: ", logprob)
+        # print("logprob-m: ", logprob-m)
+        shifted = logprob-m
+        # print("shifted: ", shifted)
+        converted = np.exp(shifted)
+        # print("converted: ", converted)
+        list2.append(converted)
+    
+    sum = np.array(list2).sum()
+
+    p = [list2[i]/sum for i in range(0,3)]
+    log_p = np.log(p)
     return log_p
 
 
@@ -60,22 +84,22 @@ def main():
     dist = HYPOTHESIS_SPACE[1]
     x = dist.rvs(1000, random_state=28)
 
-    print("Posterior probs for 1 sample from Laplacian")
-    p = posterior_probs(x[:1])
-    print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
+    # print("Posterior probs for 1 sample from Laplacian")
+    # p = posterior_probs(x[:1])
+    # print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
 
     print("Posterior probs for 50 samples from Laplacian")
     p = posterior_probs(x[:50])
     print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
 
-    print("Posterior probs for 1000 samples from Laplacian")
-    p = posterior_probs(x[:1000])
-    print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
+    # print("Posterior probs for 1000 samples from Laplacian")
+    # p = posterior_probs(x[:1000])
+    # print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
 
-    print("Posterior for 100 samples from the Bayesian data generating process")
-    x = generate_sample(n_samples=100)
-    p = posterior_probs(x)
-    print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
+    # print("Posterior for 100 samples from the Bayesian data generating process")
+    # x = generate_sample(n_samples=100)
+    # p = posterior_probs(x)
+    # print("Normal: %.4f , Laplace: %.4f, Student-t: %.4f\n" % tuple(p))
 
 
 if __name__ == "__main__":
