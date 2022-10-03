@@ -35,7 +35,7 @@ class Model(object):
         We already provide a random number generator for reproducibility.
         """
         self.rng = np.random.default_rng(seed=0)
-        self.ny = Nystroem(random_state=1, n_components=2000,kernel='rbf',gamma=900)
+        self.ny = Nystroem(random_state=1, n_components=8000,kernel='rbf',gamma=900)
         self.blr = BayesianRidge(compute_score=True)
 
 
@@ -53,7 +53,7 @@ class Model(object):
         gp_mean,gp_std = self.blr.predict(X,return_std=True)
 
         # TODO: Use the GP posterior to form your predictions here
-        predictions = gp_mean+gp_std*1
+        predictions = gp_mean+gp_std*0.6
         # predictions = gp_mean-gp_std*0.01
         # predictions = gp_mean*1.1
         # predictions = gp_mean
