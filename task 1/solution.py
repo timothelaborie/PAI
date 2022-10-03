@@ -5,6 +5,9 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from sklearn.kernel_approximation import Nystroem
+from sklearn.linear_model import BayesianRidge
+from sklearn.model_selection import train_test_split
 
 
 # Set `EXTENDED_EVALUATION` to `True` in order to visualize your predictions.
@@ -32,8 +35,9 @@ class Model(object):
         We already provide a random number generator for reproducibility.
         """
         self.rng = np.random.default_rng(seed=0)
+        self.ny = Nystroem(random_state=1, n_components=2000,kernel='rbf',gamma=900)
+        self.blr = BayesianRidge(compute_score=True)
 
-        # TODO: Add custom initialization for your model here if necessary
 
     def make_predictions(self, test_features: np.ndarray) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -45,11 +49,14 @@ class Model(object):
         """
 
         # TODO: Use your GP to estimate the posterior mean and stddev for each location here
-        gp_mean = np.zeros(test_features.shape[0], dtype=float)
-        gp_std = np.zeros(test_features.shape[0], dtype=float)
+        X = self.ny.transform(test_features)
+        gp_mean,gp_std = self.blr.predict(X,return_std=True)
 
         # TODO: Use the GP posterior to form your predictions here
-        predictions = gp_mean
+        predictions = gp_mean+gp_std*1
+        # predictions = gp_mean-gp_std*0.01
+        # predictions = gp_mean*1.1
+        # predictions = gp_mean
 
         return predictions, gp_mean, gp_std
 
@@ -61,7 +68,8 @@ class Model(object):
         """
 
         # TODO: Fit your model here
-        pass
+        X = self.ny.fit_transform(train_features)
+        self.blr.fit(X,train_GT)
 
 
 def cost_function(ground_truth: np.ndarray, predictions: np.ndarray) -> float:
