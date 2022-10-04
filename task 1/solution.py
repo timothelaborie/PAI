@@ -53,10 +53,11 @@ class Model(object):
         gp_mean,gp_std = self.blr.predict(X,return_std=True)
 
         # TODO: Use the GP posterior to form your predictions here
-        predictions = gp_mean+gp_std*0.6
-        # predictions = gp_mean-gp_std*0.01
-        # predictions = gp_mean*1.1
-        # predictions = gp_mean
+        predictions = gp_mean+gp_std*0.44
+        for i in range(gp_mean.size):
+            tresh = 1.05
+            if predictions[i]>tresh*gp_mean[i]:
+                predictions[i] = tresh*gp_mean[i]
 
         return predictions, gp_mean, gp_std
 
