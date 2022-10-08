@@ -5,22 +5,33 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from sklearn.kernel_approximation import Nystroem
-from sklearn.linear_model import BayesianRidge
-from sklearn.model_selection import train_test_split
-
+import gpytorch
+import torch
 
 # Set `EXTENDED_EVALUATION` to `True` in order to visualize your predictions.
 EXTENDED_EVALUATION = False
 EVALUATION_GRID_POINTS = 300  # Number of grid points used in extended evaluation
 EVALUATION_GRID_POINTS_3D = 50  # Number of points displayed in 3D during evaluation
+state_dict = 'model_state.pth'
 
 
 # Cost function constants
 COST_W_UNDERPREDICT = 25.0
 COST_W_NORMAL = 1.0
 COST_W_OVERPREDICT = 10.0
+# We will use the simplest form of GP model, exact inference
+class ExactGPModel(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y, likelihood):
+        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+    
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
+# initialize likelihood and model
 
 class Model(object):
     """
@@ -35,9 +46,11 @@ class Model(object):
         We already provide a random number generator for reproducibility.
         """
         self.rng = np.random.default_rng(seed=0)
-        self.ny = Nystroem(random_state=1, n_components=8000,kernel='rbf',gamma=900)
-        self.blr = BayesianRidge(compute_score=True)
+        self.likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        # self.model = ExactGPModel(train_x, train_y, self.likelihood).load_state_dict(state_dict)
+        
 
+        # TODO: Add custom initialization for your model here if necessary
 
     def make_predictions(self, test_features: np.ndarray) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -47,15 +60,22 @@ class Model(object):
             Tuple of three 1d NumPy float arrays, each of shape (NUM_SAMPLES,),
             containing your predictions, the GP posterior mean, and the GP posterior stddev (in that order)
         """
-
+        self.model.eval()
+        self.likelihood.eval()
+        tt = torch.tensor(test_features, dtype=torch.float32)
         # TODO: Use your GP to estimate the posterior mean and stddev for each location here
-        X = self.ny.transform(test_features)
-        gp_mean,gp_std = self.blr.predict(X,return_std=True)
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+
+            # f_preds = self.model(tt)
+            # y_preds = self.likelihood(self.model(tt))
+            observed_pred = self.likelihood(self.model(tt))
+        gp_mean = observed_pred.mean.cpu().numpy()
+        gp_std = np.sqrt(observed_pred.variance.cpu().detach().numpy())
 
         # TODO: Use the GP posterior to form your predictions here
-        predictions = gp_mean+gp_std*0.73
+        predictions = gp_mean+gp_std*0.42
         for i in range(gp_mean.size):
-            tresh = 1.045
+            tresh = 1.04
             if predictions[i]>tresh*gp_mean[i]:
                 predictions[i] = tresh*gp_mean[i]
 
@@ -69,8 +89,11 @@ class Model(object):
         """
 
         # TODO: Fit your model here
-        X = self.ny.fit_transform(train_features)
-        self.blr.fit(X,train_GT)
+        x = torch.tensor(train_features, dtype=torch.float32)
+        y = torch.tensor(train_GT, dtype=torch.float32)
+        loaded = torch.load('model_state.pth', map_location = torch.device('cpu'))
+        self.model = ExactGPModel(x, y, self.likelihood)
+        self.model.load_state_dict(loaded)
 
 
 def cost_function(ground_truth: np.ndarray, predictions: np.ndarray) -> float:
