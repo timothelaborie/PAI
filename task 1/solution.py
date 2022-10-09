@@ -4,14 +4,12 @@ from sklearn.gaussian_process.kernels import *
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 import matplotlib.pyplot as plt
-import lightgbm as lgb
-import pandas as pd
 from matplotlib import cm
 import gpytorch
 import torch
 
 # Set `EXTENDED_EVALUATION` to `True` in order to visualize your predictions.
-EXTENDED_EVALUATION = True
+EXTENDED_EVALUATION = False
 EVALUATION_GRID_POINTS = 300  # Number of grid points used in extended evaluation
 EVALUATION_GRID_POINTS_3D = 50  # Number of points displayed in 3D during evaluation
 state_dict = 'model_state.pth'
@@ -68,20 +66,18 @@ class Model(object):
         # TODO: Use your GP to estimate the posterior mean and stddev for each location here
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
 
-            f_preds = self.model(tt)
-            y_preds = self.likelihood(self.model(tt))
+            # f_preds = self.model(tt)
+            # y_preds = self.likelihood(self.model(tt))
             observed_pred = self.likelihood(self.model(tt))
         gp_mean = observed_pred.mean.cpu().numpy()
         gp_std = np.sqrt(observed_pred.variance.cpu().detach().numpy())
-        test = pd.DataFrame(test_features, columns = ['lat', 'lon'])
-        test['mean'] = gp_mean
-        test['std'] = gp_std
-        test['lgb'] = self.clf.predict(test)
-        test['over_predict'] =  test['lgb'].apply(lambda x: int(x > 0.7))
-        test['prediction'] = test['mean'] + test['over_predict']*test['std']*0.25
 
         # TODO: Use the GP posterior to form your predictions here
-        predictions = test['prediction'].to_numpy()
+        predictions = gp_mean+gp_std*0.42
+        for i in range(gp_mean.size):
+            tresh = 1.04
+            if predictions[i]>tresh*gp_mean[i]:
+                predictions[i] = tresh*gp_mean[i]
 
         return predictions, gp_mean, gp_std
 
@@ -97,7 +93,6 @@ class Model(object):
         y = torch.tensor(train_GT, dtype=torch.float32)
         loaded = torch.load('model_state.pth', map_location = torch.device('cpu'))
         self.model = ExactGPModel(x, y, self.likelihood)
-        self.clf = lgb.Booster(model_file='clf.txt') 
         self.model.load_state_dict(loaded)
 
 
@@ -205,8 +200,8 @@ def main():
     predictions = model.make_predictions(test_features)
     print(predictions)
 
-    
-    perform_extended_evaluation(model, output_dir='.')
+    if EXTENDED_EVALUATION:
+        perform_extended_evaluation(model, output_dir='.')
 
 
 if __name__ == "__main__":
