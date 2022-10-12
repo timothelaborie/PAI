@@ -65,19 +65,15 @@ class Model(object):
         tt = torch.tensor(test_features, dtype=torch.float32)
         # TODO: Use your GP to estimate the posterior mean and stddev for each location here
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
-
-            # f_preds = self.model(tt)
-            # y_preds = self.likelihood(self.model(tt))
-            observed_pred = self.likelihood(self.model(tt))
-        gp_mean = observed_pred.mean.cpu().numpy()
-        gp_std = np.sqrt(observed_pred.variance.cpu().detach().numpy())
+            output = self.model(tt)
+            gp_mean = output.mean.numpy()
+            gp_std = output.stddev.numpy()
 
         # TODO: Use the GP posterior to form your predictions here
-        predictions = gp_mean+gp_std*0.42
-        for i in range(gp_mean.size):
-            tresh = 1.04
-            if predictions[i]>tresh*gp_mean[i]:
-                predictions[i] = tresh*gp_mean[i]
+        predictions = gp_mean*(1+gp_std*0.0088)
+        predictions = gp_mean
+
+
 
         return predictions, gp_mean, gp_std
 
@@ -91,7 +87,7 @@ class Model(object):
         # TODO: Fit your model here
         x = torch.tensor(train_features, dtype=torch.float32)
         y = torch.tensor(train_GT, dtype=torch.float32)
-        loaded = torch.load('model_state.pth', map_location = torch.device('cpu'))
+        loaded = torch.load('model_state_improved4.pth', map_location = torch.device('cpu'))
         self.model = ExactGPModel(x, y, self.likelihood)
         self.model.load_state_dict(loaded)
 
