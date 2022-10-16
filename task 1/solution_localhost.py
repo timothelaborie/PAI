@@ -63,9 +63,11 @@ class Model(object):
         data = r.json()
         
         gp_mean = data["gp_mean"]
-        gp_std = data["gp_mean"]
+        gp_std = data["gp_std"]
+        predictions = data["predictions"]
         gp_mean = np.array(gp_mean)
         gp_std = np.array(gp_std)
+        predictions = np.array(predictions)
 
         # print(gp_mean.shape, gp_std.shape)
             
@@ -78,7 +80,7 @@ class Model(object):
         #         predictions[i] = tresh*gp_mean[i]
 
         # predictions = gp_mean*(1+gp_std*params["mult"])
-        predictions = gp_mean
+        # predictions = gp_mean
 
         
         # print(np.average(gp_mean))
