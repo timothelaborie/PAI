@@ -17,10 +17,6 @@ import copy
 from util import ece, ParameterDistribution, draw_reliability_diagram, draw_confidence_histogram, SGLD
 from enum import Enum
 
-from torch.utils.data import DataLoader
-
-import requests
-
 # TODO: Reliability_diagram_1. Set `EXTENDED_EVALUATION` to `True` in order to visualize your predictions.
 EXTENDED_EVALUATION = False
 
@@ -51,7 +47,7 @@ def run_solution(dataset_train: torch.utils.data.Dataset, data_dir: str = os.cur
     if not combined_model:
         
         # TODO General_1: Choose your approach here
-        approach = Approach.MCDropout
+        approach = Approach.Dummy_Trainer
 
         if approach == Approach.Dummy_Trainer:
             trainer = DummyTrainer(dataset_train=dataset_train)
@@ -67,16 +63,15 @@ def run_solution(dataset_train: torch.utils.data.Dataset, data_dir: str = os.cur
             trainer = SelfTrainer(dataset_train=dataset_train)
 
         # Train the model
-        print('run_solution 2')
-        # print('Training model', approach.name)
-        # trainer.train()
+        print('Training model', approach.name)
+        trainer.train()
 
         # Predict using the trained model
-        # print('Evaluating model on training data')
-        # eval_loader = torch.utils.data.DataLoader(
-        #     dataset_train, batch_size=64, shuffle=False, drop_last=False
-        # )
-        # evaluate(trainer, eval_loader, data_dir, output_dir)
+        print('Evaluating model on training data')
+        eval_loader = torch.utils.data.DataLoader(
+            dataset_train, batch_size=64, shuffle=False, drop_last=False
+        )
+        evaluate(trainer, eval_loader, data_dir, output_dir)
 
         # IMPORTANT: return your model here!
         return trainer
@@ -252,28 +247,37 @@ class DummyTrainer(Framework):
 
 
 class MNISTNet(nn.Module):
-    def __init__(self):
+    def __init__(self,
+                in_features: int, 
+                out_features: int,
+                dropout_p=0,
+                dropout_at_eval=False
+                ):
         super().__init__()
-        self.conv1 = nn.LazyConv2d(16, 3, 1)
-        self.conv2 = nn.LazyConv2d(32, 3, 1)
-        self.fc1 = nn.LazyLinear(64)
-        self.fc2 = nn.LazyLinear(10)
-        # self.softmax = nn.Softmax(dim=1)
+        # TODO General_2: Play around with the network structure.
+        # You could change the depth or width of the model
+        self.layer1 = nn.Linear(in_features,100)
+        self.layer2 = nn.Linear(100, 100)
+        self.layer3 = nn.Linear(100, out_features)
+        self.dropout_p = dropout_p
+        self.dropout_at_eval = dropout_at_eval
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = torch.flatten(x, 1)
-        x = F.dropout(x,training=True,p=0.3)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = F.dropout(x,training=True,p=0.3)
-        x = self.fc2(x)
-        # output = self.softmax(x)
-        return x
+        # TODO General_2: Play around with the network structure
+        # You might add different modules like Pooling 
+        x = F.dropout(
+                F.relu(self.layer1(x)),
+                p=self.dropout_p,
+                training=self.training or self.dropout_at_eval
+        )
+        x = F.dropout(
+                F.relu(self.layer2(x)),
+                p=self.dropout_p,
+                training=self.training or self.dropout_at_eval
+        )
+
+        class_probs = self.layer3(x)
+        return class_probs
 
 class SelfMadeNetwork(nn.Module):
     def __init__(self,
@@ -293,7 +297,6 @@ class SelfMadeNetwork(nn.Module):
         class_probs = self.layer3(x)
         return class_probs
 
-
 class DropoutTrainer(Framework):
     def __init__(self, dataset_train,
                  *args, **kwargs):
@@ -303,63 +306,49 @@ class DropoutTrainer(Framework):
         # TODO: MC_Dropout_4. Do experiments and tune hyperparameters
         self.batch_size = 128
         self.learning_rate = 1e-3
-        self.num_epochs = 10
-        torch.manual_seed(0) # set seed for reproducibility
+        self.num_epochs = 100
+        # torch.manual_seed(0) # set seed for reproducibility
         
         # TODO: MC_Dropout_1. Initialize the MC_Dropout network and optimizer here
         # You can check the Dummy Trainer above for intuition about what to do
-        self.network = MNISTNet()
-        self.train_loader = DataLoader(
-            dataset_train, batch_size=self.batch_size, shuffle=True, drop_last=True
-            )
-        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.learning_rate) 
-
-        print("__init__!!!")
-        # self.network = torch.load("trainer.pth")
-        self.network.load_state_dict(torch.load('trainer.pth'))
+        self.network = None
+        self.optimizer = None
         
 
     def train(self):
-        print("training!!!")
-        # self.network = torch.load("trainer.pth")
+        self.network.train()
+        progress_bar = trange(self.num_epochs)
+        for _ in progress_bar:
+            for batch_idx, (batch_x, batch_y) in enumerate(self.train_loader):
+                # batch_x are of shape (batch_size, 784), batch_y are of shape (batch_size,)
+
+                self.network.zero_grad()
+                # TODO: MC_Dropout_2. Implement MCDropout training here
+                # You need to calculate the loss based on the literature
+                loss = None
+
+                # Backpropagate to get the gradients
+                loss.backward()
+
+                self.optimizer.step()
+                # Update progress bar with accuracy occasionally
+                if batch_idx % self.print_interval == 0:
+                    current_logits = self.network(batch_x)
+                    current_accuracy = (current_logits.argmax(axis=1) == batch_y).float().mean()
+                    progress_bar.set_postfix(loss=loss.item(), acc=current_accuracy.item())
           
 
     def predict_probabilities(self, x: torch.Tensor, num_sample=100) -> torch.Tensor:
         assert x.shape[1] == 28 ** 2
-        # self.network.eval()
-        self.network.train()
-        x = x.view(-1,1,28,28)
+        self.network.eval()
 
         # TODO: MC_Dropout_3. Implement your MC_dropout prediction here
         # You need to sample from your trained model here multiple times
         # in order to implement Monte Carlo integration
-        preds = []
-        for i in range(100):
-            pred = self.network(x)
-            pred = F.softmax(pred,dim=-1)
-            pred = pred.detach().cpu().numpy()
-            preds.append(pred)
-
-        preds = np.array(preds)
-
-        # print("preds shape")
-        # print(preds.shape)
-        # print(preds)
-
-        estimated_probability = preds.mean(axis=0)
-
-        # print("estimated_probability shape")
-        # print(estimated_probability.shape)
-        # print(estimated_probability[0])
-
-        estimated_probability = torch.from_numpy(estimated_probability)
+        estimated_probability = None
         
         assert estimated_probability.shape == (x.shape[0], 10)  
         return estimated_probability
-
-
-
-
 
 
 class EnsembleTrainer(Framework):
@@ -794,7 +783,7 @@ def evaluate(model:Framework, eval_loader: torch.utils.data.DataLoader, data_dir
     :param data_dir: Data directory from which additional datasets are loaded
     :param output_dir: Directory into which plots are saved
     """
-    print("evaulating 3")
+    print("evaulating")
     # Predict class probabilities on test data
     predicted_probabilities = model.predict(eval_loader)
 
