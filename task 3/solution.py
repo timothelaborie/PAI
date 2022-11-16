@@ -5,6 +5,18 @@ from sklearn.kernel_approximation import Nystroem
 from sklearn.linear_model import BayesianRidge
 from sklearn.gaussian_process.kernels import Matern
 
+
+import torch
+from botorch.models import SingleTaskGP
+from botorch.fit import fit_gpytorch_mll
+from botorch.utils import standardize
+from gpytorch.mlls import ExactMarginalLogLikelihood
+from botorch.acquisition import UpperConfidenceBound
+from botorch.optim import optimize_acqf
+
+from gpytorch.kernels import *
+import gpytorch
+
 domain = np.array([[0, 5]])
 
 
@@ -16,8 +28,6 @@ class BO_algo():
         """Initializes the algorithm with a parameter configuration. """
 
         # TODO: enter your code here
-        self.rng = np.random.default_rng(seed=0)
-        self.blr = BayesianRidge(compute_score=True)
         self.pointsf = []
         self.pointsv = []
         self.pointsx = []
@@ -35,7 +45,15 @@ class BO_algo():
 
         # TODO: enter your code here
         # In implementing this function, you may use optimize_acquisition_function() defined below.
-        return self.optimize_acquisition_function()
+
+        # return self.optimize_acquisition_function()
+
+        self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
+        bounds = torch.stack([torch.tensor(domain[0][0][None], dtype=torch.double), torch.tensor(domain[0][1][None], dtype=torch.double)])
+        candidate, acq_value = optimize_acqf(
+            self.ucb, bounds=bounds, q=1, num_restarts=5, raw_samples=20
+        )
+        return candidate.detach().numpy()
 
 
     def optimize_acquisition_function(self):
@@ -82,11 +100,8 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        X = self.ny.transform([x])
-        mean,std = self.blr.predict(X,return_std=True)
-
-        # return mean + 0.1*std
-        return std
+        self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
+        return 
 
 
     def add_data_point(self, x, f, v):
@@ -120,15 +135,13 @@ class BO_algo():
         # print("x: {0:0.2f}, f: {1:0.2f}, v: {2:0.2f}".format(x, f, v))
         # print(v)
         # x = x[0]
-        self.pointsx.append(x)
-        self.pointsf.append(f)
+        self.pointsx.append([x])
+        self.pointsf.append([f])
         self.pointsv.append(v)
-        # print(np.array(self.pointsx).reshape(-1,1).shape)
-        self.ny = Nystroem(random_state=1, n_components=len(self.pointsv),kernel=Matern(length_scale=0.5, nu=2.5))
-        X = self.ny.fit_transform(np.array(self.pointsx).reshape(-1,1))
-        self.blr.fit(X,self.pointsf)
-        # self.ny.fit_transform(self.pointsf)
-        # self.blr.fit(self.pointsf,self.pointsf)
+        covar_module=gpytorch.kernels.MaternKernel(nu=2.5, lengthscale_constraint=gpytorch.constraints.Interval(0.49, 0.51), outputscale_constraint=gpytorch.constraints.Interval(0.49, 0.51))
+        self.gp = SingleTaskGP(torch.tensor(self.pointsx, dtype=torch.double), torch.tensor(self.pointsf, dtype=torch.double), covar_module=covar_module)
+        mll = ExactMarginalLogLikelihood(self.gp.likelihood, self.gp)
+        fit_gpytorch_mll(mll)
 
     def get_solution(self):
         """
@@ -141,7 +154,11 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        return self.pointsx[np.argmax(self.pointsf)]
+        bounds = torch.stack([torch.tensor(domain[0][0][None], dtype=torch.double), torch.tensor(domain[0][1][None], dtype=torch.double)])
+        candidate, acq_value = optimize_acqf(
+            self.ucb, bounds=bounds, q=1, num_restarts=5, raw_samples=20
+        )
+        return candidate.detach().numpy()
 
 
 """ Toy problem to check code works as expected """
