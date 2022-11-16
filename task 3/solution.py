@@ -1,6 +1,10 @@
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
 
+from sklearn.kernel_approximation import Nystroem
+from sklearn.linear_model import BayesianRidge
+from sklearn.gaussian_process.kernels import Matern
+
 domain = np.array([[0, 5]])
 
 
@@ -12,7 +16,11 @@ class BO_algo():
         """Initializes the algorithm with a parameter configuration. """
 
         # TODO: enter your code here
-        pass
+        self.rng = np.random.default_rng(seed=0)
+        self.blr = BayesianRidge(compute_score=True)
+        self.pointsf = []
+        self.pointsv = []
+        self.pointsx = []
 
 
     def next_recommendation(self):
@@ -27,7 +35,7 @@ class BO_algo():
 
         # TODO: enter your code here
         # In implementing this function, you may use optimize_acquisition_function() defined below.
-        raise NotImplementedError
+        return self.optimize_acquisition_function()
 
 
     def optimize_acquisition_function(self):
@@ -74,7 +82,11 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        raise NotImplementedError
+        X = self.ny.transform([x])
+        mean,std = self.blr.predict(X,return_std=True)
+
+        # return mean + 0.1*std
+        return std
 
 
     def add_data_point(self, x, f, v):
@@ -92,7 +104,31 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        raise NotImplementedError
+        x_ = np.array(x)
+        if x_.ndim == 1:
+            x = x_[0]
+        elif x_.ndim == 2:
+            x = x_[0][0]
+
+        f_ = np.array([f])
+        if f_.ndim == 1:
+            f = f_[0]
+        elif f_.ndim == 2:
+            f = f_[0][0]
+
+
+        # print("x: {0:0.2f}, f: {1:0.2f}, v: {2:0.2f}".format(x, f, v))
+        # print(v)
+        # x = x[0]
+        self.pointsx.append(x)
+        self.pointsf.append(f)
+        self.pointsv.append(v)
+        # print(np.array(self.pointsx).reshape(-1,1).shape)
+        self.ny = Nystroem(random_state=1, n_components=len(self.pointsv),kernel=Matern(length_scale=0.5, nu=2.5))
+        X = self.ny.fit_transform(np.array(self.pointsx).reshape(-1,1))
+        self.blr.fit(X,self.pointsf)
+        # self.ny.fit_transform(self.pointsf)
+        # self.blr.fit(self.pointsf,self.pointsf)
 
     def get_solution(self):
         """
@@ -105,7 +141,7 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        raise NotImplementedError
+        return self.pointsx[np.argmax(self.pointsf)]
 
 
 """ Toy problem to check code works as expected """
@@ -130,6 +166,8 @@ def v(x):
 def main():
     # Init problem
     agent = BO_algo()
+
+    n_dim = domain.shape[0]
     
     # Add initial safe point
     x_init = domain[:, 0] + (domain[:, 1] - domain[:, 0]) * np.random.rand(
