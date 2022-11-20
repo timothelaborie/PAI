@@ -50,16 +50,16 @@ class BO_algo():
 
 
 
-        self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
-        bounds = torch.stack([torch.tensor(domain[0][0][None], dtype=torch.double), torch.tensor(domain[0][1][None], dtype=torch.double)])
-        candidate, acq_value = optimize_acqf(
-            self.ucb, bounds=bounds, q=1, num_restarts=5, raw_samples=20
-        )
-        # print(acq_value.detach().numpy())
-        print("candidate: {0:0.2f}, acq_value: {1:0.2f}".format(candidate.detach().numpy()[0][0], acq_value.detach().numpy()))
-        return candidate.detach().numpy()
+        # self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
+        # bounds = torch.stack([torch.tensor(domain[0][0][None], dtype=torch.double), torch.tensor(domain[0][1][None], dtype=torch.double)])
+        # candidate, acq_value = optimize_acqf(
+        #     self.ucb, bounds=bounds, q=1, num_restarts=5, raw_samples=20
+        # )
+        # # print(acq_value.detach().numpy())
+        # print("candidate: {0:0.2f}, acq_value: {1:0.2f}".format(candidate.detach().numpy()[0][0], acq_value.detach().numpy()))
+        # return candidate.detach().numpy()
 
-        # return 0 if len(self.pointsx) == 1 else self.pointsx[-1]+0.25
+        return 0 if len(self.pointsx) == 1 else self.pointsx[-1]+0.25
 
 
         # temp = self.pointsx[0] + np.random.randn() * 0.1
@@ -110,9 +110,9 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        # pass
-        self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
-        return 
+        pass
+        # self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
+        # return 
 
 
     def add_data_point(self, x, f, v):
@@ -156,21 +156,17 @@ class BO_algo():
 
 
         print("x: {0:0.2f}, f: {1:0.2f}, v: {2:0.2f}".format(x, f, v))
-        # self.pointsx.append(x)
-        # self.pointsf.append(f)
-        # self.pointsv.append(v)
-
-        if v < 1.2:
-            f = f + (v - 1.2)
-
-        self.pointsx.append([x])
-        self.pointsf.append([f])
+        self.pointsx.append(x)
+        self.pointsf.append(f)
         self.pointsv.append(v)
-        covar_module=gpytorch.kernels.MaternKernel(nu=2.5, lengthscale_constraint=gpytorch.constraints.Interval(0.49, 0.51), outputscale_constraint=gpytorch.constraints.Interval(0.99, 1.01))
-        self.gp = SingleTaskGP(torch.tensor(self.pointsx, dtype=torch.double), torch.tensor(self.pointsf, dtype=torch.double), covar_module=covar_module)
-        self.gp.likelihood.noise = 0.15
-        mll = ExactMarginalLogLikelihood(self.gp.likelihood, self.gp)
-        fit_gpytorch_mll(mll)
+
+        # self.pointsx.append([x])
+        # self.pointsf.append([f])
+        # self.pointsv.append(v)
+        # covar_module=gpytorch.kernels.MaternKernel(nu=2.5, lengthscale_constraint=gpytorch.constraints.Interval(0.49, 0.51), outputscale_constraint=gpytorch.constraints.Interval(0.49, 0.51))
+        # self.gp = SingleTaskGP(torch.tensor(self.pointsx, dtype=torch.double), torch.tensor(self.pointsf, dtype=torch.double), covar_module=covar_module)
+        # mll = ExactMarginalLogLikelihood(self.gp.likelihood, self.gp)
+        # fit_gpytorch_mll(mll)
 
     def get_solution(self):
         """
@@ -193,8 +189,6 @@ class BO_algo():
         bestx = 0
         finalv = -1
         for (x,f,v) in zip(self.pointsx, self.pointsf, self.pointsv):
-            x = x[0]
-            f = f[0]
             if f > best and v > 1.201:
                 best = f
                 bestx = x

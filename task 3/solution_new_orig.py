@@ -1,24 +1,9 @@
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
 
-from sklearn.kernel_approximation import Nystroem
-from sklearn.linear_model import BayesianRidge
-from sklearn.gaussian_process.kernels import Matern
-
-
-import torch
-from botorch.models import SingleTaskGP
-from botorch.fit import fit_gpytorch_mll
-from botorch.utils import standardize
-from gpytorch.mlls import ExactMarginalLogLikelihood
-from botorch.acquisition import UpperConfidenceBound
-from botorch.optim import optimize_acqf
-
-from gpytorch.kernels import *
-import gpytorch
-
 domain = np.array([[0, 5]])
-
+SAFETY_THRESHOLD = 1.2
+SEED = 0
 
 """ Solution """
 
@@ -28,9 +13,7 @@ class BO_algo():
         """Initializes the algorithm with a parameter configuration. """
 
         # TODO: enter your code here
-        self.pointsf = []
-        self.pointsv = []
-        self.pointsx = []
+        pass
 
 
     def next_recommendation(self):
@@ -45,25 +28,7 @@ class BO_algo():
 
         # TODO: enter your code here
         # In implementing this function, you may use optimize_acquisition_function() defined below.
-
-        # return self.optimize_acquisition_function()
-
-
-
-        self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
-        bounds = torch.stack([torch.tensor(domain[0][0][None], dtype=torch.double), torch.tensor(domain[0][1][None], dtype=torch.double)])
-        candidate, acq_value = optimize_acqf(
-            self.ucb, bounds=bounds, q=1, num_restarts=5, raw_samples=20
-        )
-        # print(acq_value.detach().numpy())
-        print("candidate: {0:0.2f}, acq_value: {1:0.2f}".format(candidate.detach().numpy()[0][0], acq_value.detach().numpy()))
-        return candidate.detach().numpy()
-
-        # return 0 if len(self.pointsx) == 1 else self.pointsx[-1]+0.25
-
-
-        # temp = self.pointsx[0] + np.random.randn() * 0.1
-        # return 0 if temp < 0 else temp if temp < 5 else 5
+        raise NotImplementedError
 
 
     def optimize_acquisition_function(self):
@@ -110,9 +75,7 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        # pass
-        self.ucb = UpperConfidenceBound(self.gp, beta=0.1)
-        return 
+        raise NotImplementedError
 
 
     def add_data_point(self, x, f, v):
@@ -130,47 +93,7 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        x_ = np.array(x)
-        if x_.ndim == 1:
-            x = x_[0]
-        elif x_.ndim == 2:
-            x = x_[0][0]
-        elif x_.ndim == 3:
-            x = x_[0][0][0]
-
-        f_ = np.array([f])
-        if f_.ndim == 1:
-            f = f_[0]
-        elif f_.ndim == 2:
-            f = f_[0][0]
-        elif f_.ndim == 3:
-            f = f_[0][0][0]
-
-        v_ = np.array([v])
-        if v_.ndim == 1:
-            v = v_[0]
-        elif v_.ndim == 2:
-            v = v_[0][0]
-        elif v_.ndim == 3:
-            v = v_[0][0][0]
-
-
-        print("x: {0:0.2f}, f: {1:0.2f}, v: {2:0.2f}".format(x, f, v))
-        # self.pointsx.append(x)
-        # self.pointsf.append(f)
-        # self.pointsv.append(v)
-
-        if v < 1.2:
-            f = f + (v - 1.2)
-
-        self.pointsx.append([x])
-        self.pointsf.append([f])
-        self.pointsv.append(v)
-        covar_module=gpytorch.kernels.MaternKernel(nu=2.5, lengthscale_constraint=gpytorch.constraints.Interval(0.49, 0.51), outputscale_constraint=gpytorch.constraints.Interval(0.99, 1.01))
-        self.gp = SingleTaskGP(torch.tensor(self.pointsx, dtype=torch.double), torch.tensor(self.pointsf, dtype=torch.double), covar_module=covar_module)
-        self.gp.likelihood.noise = 0.15
-        mll = ExactMarginalLogLikelihood(self.gp.likelihood, self.gp)
-        fit_gpytorch_mll(mll)
+        raise NotImplementedError
 
     def get_solution(self):
         """
@@ -183,28 +106,7 @@ class BO_algo():
         """
 
         # TODO: enter your code here
-        # bounds = torch.stack([torch.tensor(domain[0][0][None], dtype=torch.double), torch.tensor(domain[0][1][None], dtype=torch.double)])
-        # candidate, acq_value = optimize_acqf(
-        #     self.ucb, bounds=bounds, q=1, num_restarts=5, raw_samples=20
-        # )
-        # return candidate.detach().numpy()
-
-        best = -9
-        bestx = 0
-        finalv = -1
-        for (x,f,v) in zip(self.pointsx, self.pointsf, self.pointsv):
-            x = x[0]
-            f = f[0]
-            if f > best and v > 1.201:
-                best = f
-                bestx = x
-                finalv = v
-
-        print("best: {0:0.2f}, bestx: {1:0.2f}, finalv: {2:0.2f}".format(best, bestx, finalv))
-
-        return np.array([bestx])
-            
-
+        raise NotImplementedError
 
 
 """ Toy problem to check code works as expected """
@@ -225,20 +127,29 @@ def v(x):
     """Dummy speed"""
     return 2.0
 
+def get_initial_safe_point():
+    """Return initial safe point"""
+    x_domain = np.linspace(*domain[0], 4000)[:, None]
+    c_val = np.vectorize(v)(x_domain)
+    x_valid = x_domain[c_val > SAFETY_THRESHOLD]
+    np.random.seed(SEED)
+    np.random.shuffle(x_valid)
+    x_init = x_valid[0]
+    return x_init
+
+
 
 def main():
     # Init problem
     agent = BO_algo()
 
-    n_dim = domain.shape[0]
-    
     # Add initial safe point
-    x_init = domain[:, 0] + (domain[:, 1] - domain[:, 0]) * np.random.rand(
-            1, n_dim)
+    x_init = get_initial_safe_point()
     obj_val = f(x_init)
     cost_val = v(x_init)
     agent.add_data_point(x_init, obj_val, cost_val)
-    
+
+
     # Loop until budget is exhausted
     for j in range(20):
         # Get next recommendation
