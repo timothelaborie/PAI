@@ -1,1 +1,1 @@
-PAI ETH probabilistic AI 2022 projects
+ETHZ probabilistic AI 2022 projects
